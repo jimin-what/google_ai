@@ -1,7 +1,8 @@
 import { Audio } from 'expo-av';
 import { Camera, CameraView } from 'expo-camera';
 import React, { useEffect, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // =================================================================
 // 컴포넌트들을 IndexScreen 바깥으로 분리
@@ -9,7 +10,7 @@ import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View 
 
 // Onboarding 화면
 const OnboardingScreen = ({ onStart }) => (
-    <View style={styles.centerScreen}>
+    <SafeAreaView style={styles.centerScreen}>
         <Text style={{ fontSize: 80 }}>😞</Text>
         <Text style={styles.title}>AI 감정 케어 앱</Text>
         <Text style={styles.subtitle}>당신의 오늘 하루는 어땠나요?</Text>
@@ -19,7 +20,7 @@ const OnboardingScreen = ({ onStart }) => (
         <TouchableOpacity style={styles.onboardingButton} onPress={onStart}>
             <Text style={styles.primaryButtonText}>시작하기 →</Text>
         </TouchableOpacity>
-    </View>
+    </SafeAreaView>
 );
 
 // 감정 기록 탭
@@ -169,11 +170,11 @@ const ReportScreen = () => (
 );
 
 const ProfileScreen = () => (
-    <View style={styles.centerScreen}>
+    <SafeAreaView style={styles.centerScreen}>
         <Text style={{ fontSize: 80 }}>👤</Text>
         <Text style={styles.title}>내 정보</Text>
         <Text style={styles.subtitle}>프로필 화면입니다.</Text>
-    </View>
+    </SafeAreaView>
 );
 
 
@@ -191,14 +192,10 @@ export default function IndexScreen() {
     const [analysisResult, setAnalysisResult] = useState<any>(null);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState(false);
-    const [hasMicrophonePermission, setHasMicrophonePermission] = useState(false);
     
     useEffect(() => {
-        (async () => {
-            await Camera.requestCameraPermissionsAsync();
-            const microphoneStatus = await Camera.requestMicrophonePermissionsAsync();
-            setHasMicrophonePermission(microphoneStatus.status === 'granted');
-        })();
+        // 앱 시작 시 카메라 권한만 요청합니다.
+        Camera.requestCameraPermissionsAsync();
     }, []);
 
     const handleTakePhoto = (uri: string | null) => {
@@ -207,11 +204,14 @@ export default function IndexScreen() {
     
     async function startRecording() {
         try {
-            if (!hasMicrophonePermission) {
-                alert('마이크 접근 권한이 필요합니다. 앱 설정에서 권한을 허용해주세요.');
-                return;
+            // 녹음 시작 직전에 expo-av를 통해 직접 권한을 요청합니다.
+            const permission = await Audio.requestPermissionsAsync();
+            if (permission.status !== 'granted') {
+                Alert.alert('권한 필요', '마이크 녹음 권한이 필요합니다.');
+                return; // 권한이 없으면 여기서 함수를 중단합니다.
             }
             
+            // 권한이 있으면 녹음을 계속 진행합니다.
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: true,
                 playsInSilentModeIOS: true,
@@ -223,7 +223,7 @@ export default function IndexScreen() {
 
         } catch (err) {
             console.error('Failed to start recording', err);
-            alert('녹음을 시작하는 중 오류가 발생했습니다.');
+            Alert.alert('오류', '녹음을 시작하는 중 문제가 발생했습니다.');
             setIsRecording(false);
         }
     }
@@ -253,22 +253,45 @@ export default function IndexScreen() {
         }
     };
 
-    const handleAnalyze = () => {
+    const handleAnalyze = async () => {
         setFlowState('analyzing');
-        setTimeout(() => {
-            const mockResult = {
-                emotion: '불안 (Anxious)',
-                carePlan: {
-                    title: '4-6 호흡법',
-                    method: '4초 동안 숨을 마시고, 6초 동안 숨을 내쉽니다. 이 과정을 반복합니다.',
-                    effect: '심장 박동수가 안정되고, 즉각적인 진정 효과를 기대할 수 있습니다.',
-                    difficulty: 1,
-                    duration: '2분',
-                },
-            };
-            setAnalysisResult(mockResult);
+        const formData = new FormData();
+        if (textInput) {
+            formData.append('text', textInput);
+        }
+        if (photoURI) {
+            const photoName = photoURI.split('/').pop() || 'photo.jpg';
+            formData.append('photo', {
+                uri: photoURI,
+                name: photoName,
+                type: 'image/jpeg',
+            } as any);
+        }
+        if (soundURI) {
+            const soundName = soundURI.split('/').pop() || 'recording.m4a';
+            formData.append('sound', {
+                uri: soundURI,
+                name: soundName,
+                type: 'audio/m4a',
+            } as any);
+        }
+
+        try {
+            const response = await fetch('https://your-backend-api.com/analyze', {
+                method: 'POST',
+                body: formData,
+            });
+            if (!response.ok) {
+                throw new Error(`서버 응답 오류: ${response.status}`);
+            }
+            const result = await response.json();
+            setAnalysisResult(result);
             setFlowState('chat');
-        }, 3000);
+        } catch (error) {
+            console.error('데이터 전송 오류:', error);
+            Alert.alert('오류', '데이터를 분석하는 중 문제가 발생했습니다. 다시 시도해주세요.');
+            setFlowState('input');
+        }
     };
 
     const resetFlow = () => {
@@ -335,10 +358,10 @@ export default function IndexScreen() {
     }
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             {renderTabContent()}
             <BottomTabBar />
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -372,7 +395,6 @@ const styles = StyleSheet.create({
   tabLabelActive: { color: '#2563EB', fontWeight: 'bold' },
   title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', color: '#111827', marginBottom: 8 },
   subtitle: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 12 },
-  // 👇 여기에 따옴표를 추가했습니다.
   description: { fontSize: 14, color: '#4B5563', textAlign: 'center', marginBottom: 24 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: '#111827' },
   cardSubtitle: { fontSize: 14, fontWeight: '600', marginTop: 10, marginBottom: 4, color: '#374151' },
