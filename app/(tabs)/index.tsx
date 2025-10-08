@@ -101,20 +101,31 @@ const ChatScreen = ({ analysisResult, chatHistory, chatInput, setChatInput, hand
             <Text style={[styles.title, { paddingTop: 16 }]}>AI와의 대화</Text>
             <ScrollView style={styles.scroll} ref={scrollViewRef} onContentSizeChange={() => scrollViewRef.current.scrollToEnd({ animated: true })}>
                 {chatHistory.map((message, index) => {
+                    // 솔루션 카드 렌더링
                     if (message.type === 'carePlan') {
                         return (
                             <View key={index} style={styles.card}>
+                                {/* 백엔드에서 받은 동적 데이터 (솔루션 제목) */}
                                 <Text style={styles.cardTitle}>{message.content.title}</Text>
+
+                                {/* 프론트엔드에 고정된 텍스트 */}
                                 <Text style={styles.cardSubtitle}>진행 방법</Text>
+                                {/* 백엔드에서 받은 동적 데이터 (진행 방법 내용) */}
                                 <Text>{message.content.method}</Text>
+                                
+                                {/* 프론트엔드에 고정된 텍스트 */}
                                 <Text style={styles.cardSubtitle}>효과</Text>
+                                {/* 백엔드에서 받은 동적 데이터 (효과 내용) */}
                                 <Text>{message.content.effect}</Text>
+
                                 <TouchableOpacity style={[styles.primaryButton, { backgroundColor: '#10B981', marginTop: 10 }]}>
+                                    {/* 백엔드에서 받은 동적 데이터 (소요 시간) */}
                                     <Text style={styles.primaryButtonText}>시작 {message.content.duration}</Text>
                                 </TouchableOpacity>
                             </View>
                         );
                     }
+                    // 일반 채팅 메시지 렌더링
                     return (
                         <View key={index} style={[styles.chatBubble, message.role === 'user' ? styles.userBubble : styles.aiBubble]}>
                             <Text style={[styles.chatText, message.role === 'user' && styles.userChatText]}>{message.content}</Text>
@@ -233,13 +244,12 @@ export default function IndexScreen() {
     const handleAnalyze = async () => {
         setIsLoading(true);
         setTimeout(() => {
+            // 이 mockResult 객체가 실제로는 백엔드 API로부터 받아오는 데이터입니다.
             const mockResult = { carePlan: { title: "4-6 호흡법", method: "편안한 자세로 앉아 코로 4초간 숨을 들이마시고, 6초간 입으로 천천히 내뱉으세요.", effect: "심박수를 안정시키고 스트레스 반응을 줄여줍니다.", duration: "3분" } };
             setAnalysisResult(mockResult);
             setChatHistory([
                 { role: 'ai', content: '마음 분석이 끝났어요. 간단한 솔루션을 알려드릴게요!' },
-                // ▼▼▼ [수정] role:'ai'가 아닌 role:ai'로 되어있던 오타를 수정합니다. ▼▼▼
                 { role: 'ai', type: 'carePlan', content: mockResult.carePlan }
-                // ▲▲▲ [수정] 여기까지 수정 ▲▲▲
             ]);
             setIsLoading(false);
             setActiveTab('chat');
@@ -388,7 +398,7 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontSize: 14, fontWeight: '600', marginTop: 10, marginBottom: 4, color: '#374151' },
   cameraButtonContainer: { flex: 1, backgroundColor: 'transparent', flexDirection: 'column', justifyContent: 'flex-end', margin: 20, alignItems: 'center' },
   snapButton: {
-    backgroundColor: '#9fce48ff', 
+    backgroundColor: '#7cbf55ff', 
     borderRadius: 999,
     paddingVertical: 18,
     paddingHorizontal: 50,
@@ -396,7 +406,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   snapButtonText: {
-    fontSize: 20,
+    fontSize: 17,
     color: 'white',
     fontWeight: 'bold',
   },
