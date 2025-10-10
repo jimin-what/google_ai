@@ -10,7 +10,27 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. 새 expo 프로젝트 생성
+
+   ```bash
+   npx create-expo-app emotional-care-app
+   cd emotional-care-app
+
+   ```
+
+3. 필요 라이브러리 설치
+
+   ```bash
+   npm install nativewind
+   npm install --dev tailwindcss
+   npx tailwindcss init
+   npm install axios
+   npx expo install expo-camera
+   npx expo install expo-av
+   npx expo install react-native-safe-area-context
+   ```
+
+4. Start the app (캐시 삭제 후 실행시 끝에 ' -c ' 붙일 것)
 
    ```bash
    npx expo start
