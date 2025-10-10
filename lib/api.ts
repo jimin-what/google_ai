@@ -1,4 +1,4 @@
-import { mockSolutions } from "./mock";
+import { mockDailyReport, mockSolutions, mockWeeklyReport } from "./mock";
 
 const API_BASE = "https://your-backend-server.com/api";
 
@@ -18,4 +18,28 @@ export const API = {
       return mockSolutions;
     }
   },
+  
+  // --- 🔽 리포트 API 함수 추가 🔽 ---
+  async getDailyReport(date: string) {
+    try {
+      const res = await fetch(`${API_BASE}/reports/daily?date=${date}`);
+      if (!res.ok) throw new Error("API error");
+      return await res.json();
+    } catch (e) {
+      console.warn("백엔드 연결 실패, mock 데이터 사용");
+      return mockDailyReport;
+    }
+  },
+
+  async getWeeklyReport(date: string) {
+    try {
+      const res = await fetch(`${API_BASE}/reports/weekly?date=${date}`);
+      if (!res.ok) throw new Error("API error");
+      return await res.json();
+    } catch (e) {
+      console.warn("백엔드 연결 실패, mock 데이터 사용");
+      return mockWeeklyReport;
+    }
+  },
+  // --- 🔼 리포트 API 함수 추가 🔼 ---
 };
