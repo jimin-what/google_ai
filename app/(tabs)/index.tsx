@@ -5,13 +5,13 @@ import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { Camera, CameraView } from 'expo-camera';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+// 👇 [수정됨] Image import 추가
+import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // --- Google Sign In ---
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 // --- Secure Store ---
-import * as SecureStore from 'expo-secure-store';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -39,12 +39,17 @@ type DailyReport = {
   };
   usage_overview: { [key: string]: any };
   created_at: string; // datetime
+
+  // 👇 [추가됨] 스크린샷 기반 임시 데이터 타입
+  timeline?: { [key: string]: string };
+  completed_solutions?: any[];
 };
 
 // app/schemas/reports.py 기반 WeeklyReportDetail
 type WeeklyReport = {
   weekly_id: string; // UUID
   week_start_date: string; // date
+  summary_text?: string; // 👇 [추가됨] 스크린샷 기반
   mood_overview: { 
     dist: { [key: string]: number }; // BarChart용 데이터
     trend: string;
@@ -288,7 +293,32 @@ const ReportCard = ({ title, children }) => (
         {children}
     </View>
 );
-const EMOTION_COLORS = { '행복': '#60A5FA', '분노': '#F87171', '불안': '#FBBF24', '슬픔': '#9CA3AF', '평온': '#86EFAC', '기본': '#E5E7EB' };
+// 👇 [수정됨] 스크린샷에 맞게 색상 정의
+const EMOTION_COLORS = { 
+    '불안': '#8B5CF6', 
+    '평온': '#A3E635', 
+    '슬픔': '#60A5FA', 
+    '행복': '#60A5FA', // 파랑
+    '분노': '#F87171', // 빨강
+    '기본': '#E5E7EB' 
+};
+
+// 👇 [신규 추가] 솔루션 정보 카드 (스크린샷 공통)
+const SolutionInfoCard = ({ title, steps, effect }: { title: string, steps: string[], effect: string }) => (
+    <View style={styles.solutionInfoCard}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        
+        <Text style={styles.solutionInfoLabel}>진행 방법</Text>
+        {steps.map((step, i) => (
+            <Text key={i} style={styles.bodyText}>{step}</Text>
+        ))}
+        
+        <Text style={styles.solutionInfoLabel}>효과</Text>
+        <Text style={styles.bodyText}>{effect}</Text>
+    </View>
+);
+
+
 // DonutChart: 백엔드 스키마 (mood_overview.dist)를 받도록 수정
 const DonutChart = ({ data }: { data: { [key: string]: number } | undefined }) => {
     // ... (내용 동일)
@@ -298,7 +328,9 @@ const DonutChart = ({ data }: { data: { [key: string]: number } | undefined }) =
     let accumulatedPercentage = 0;
 
     // data가 undefined일 경우 빈 차트
-    const chartData = Object.entries(data || {}).map(([key, value]) => ({
+    // 👇 [수정됨] 스크린샷(175829.png)의 mock data로 fallback
+    const defaultData = { '불안': 70, '평온': 20, '슬픔': 10 };
+    const chartData = Object.entries(data || defaultData).map(([key, value]) => ({
         label: key,
         percentage: value,
         color: EMOTION_COLORS[key] || EMOTION_COLORS['기본']
@@ -312,9 +344,20 @@ const DonutChart = ({ data }: { data: { [key: string]: number } | undefined }) =
                     const rotation = accumulatedPercentage * 3.6;
                     accumulatedPercentage += item.percentage;
                     const validRotation = isNaN(rotation) ? 0 : rotation;
+                    // 👇 [수정됨] 링 차트 스타일 변경 (solid로)
                     return (
                         <View key={index} style={{ width: size, height: size, position: 'absolute', transform: [{ rotate: `${validRotation}deg` }] }}>
-                             <View style={{ width: size, height: size, borderRadius: radius + strokeWidth, borderWidth: strokeWidth, borderStyle: 'dashed', borderColor: item.color, borderLeftColor: 'transparent', borderBottomColor: 'transparent', borderRightColor: 'transparent', transform: [{rotate: '45deg'}] }}/>
+                             <View style={{ 
+                                 width: size, 
+                                 height: size, 
+                                 borderRadius: radius + strokeWidth, 
+                                 borderWidth: strokeWidth, 
+                                 borderColor: item.color, 
+                                 borderLeftColor: 'transparent', 
+                                 borderBottomColor: 'transparent', 
+                                 borderRightColor: 'transparent', 
+                                 transform: [{rotate: '45deg'}] 
+                             }}/>
                         </View>
                     );
                 })}
@@ -335,7 +378,9 @@ const DonutChart = ({ data }: { data: { [key: string]: number } | undefined }) =
 // BarChart: 백엔드 스키마 (mood_overview.dist)를 받도록 수정
 const BarChart = ({ data }: { data: { [key: string]: number } | undefined }) => {
     // ... (내용 동일)
-     const chartData = Object.entries(data || {}).map(([key, value]) => ({
+     // 👇 [수정됨] 스크린샷(175859.png)의 mock data로 fallback
+     const defaultData = { "월": 85, "화": 50, "수": 32, "목": 75, "금": 50, "토": 12, "일": 80 };
+     const chartData = Object.entries(data || defaultData).map(([key, value]) => ({
       day: key,
       negative: value,
       positive: 100 - value
@@ -351,8 +396,8 @@ const BarChart = ({ data }: { data: { [key: string]: number } | undefined }) => 
             {validChartData.map((item, index) => (
                 <View key={index} style={styles.barWrapper}>
                     <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-                        <View style={{ height: `${item.negative}%`, backgroundColor: COLORS.red, borderTopLeftRadius: 4, borderTopRightRadius: 4 }} />
-                        <View style={{ height: `${item.positive}%`, backgroundColor: COLORS.blue, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 }} />
+                        {/* 👇 [수정됨] 스크린샷과 같이 파란색(긍정)만 표시 */}
+                        <View style={{ height: `${item.positive}%`, backgroundColor: COLORS.blue, borderTopLeftRadius: 4, borderTopRightRadius: 4 }} />
                     </View>
                     <Text style={styles.barLabel}>{item.day}</Text>
                 </View>
@@ -360,7 +405,7 @@ const BarChart = ({ data }: { data: { [key: string]: number } | undefined }) => 
         </View>
     );
 };
-// DailyReportView: 백엔드 스키마 (SessionReportDetail)에 맞게 props 수정
+// 👇 [수정됨] DailyReportView (스크린샷 175829.png, 175852.png 기반)
 const DailyReportView = ({ report, onBack }: { report: DailyReport; onBack: () => void }) => (
     <ScrollView style={styles.scroll}>
         <View style={styles.reportHeader}>
@@ -368,40 +413,69 @@ const DailyReportView = ({ report, onBack }: { report: DailyReport; onBack: () =
             <Text style={styles.screenTitle}>일간 리포트</Text>
             <View style={{width: 40}} />
         </View>
-        {/*
-          NOTE: 백엔드 스키마의 'mood_overview'가 DonutChart용 'dist' 객체를 포함한다고 가정합니다.
-          예: report.mood_overview = { dist: { "행복": 20, "불안": 80 } }
-        */}
+
         <ReportCard title="감정 분포">
+            {/* mockDailyReport.mood_snapshot.dist 사용 */}
             <DonutChart data={report.mood_overview?.dist} />
         </ReportCard>
-        {/* NOTE: 백엔드 스키마의 'summary'가 { text: "요약..." } 형태라고 가정합니다.
-        */}
-        <ReportCard title="종합 요약">
-             <Text style={styles.bodyText}>{report.summary?.text || '요약 정보가 없습니다.'}</Text>
+        
+        {/* 👇 [추가됨] 스크린샷 175852.png 기반 "타임라인" (임시 데이터) */}
+        <ReportCard title="타임라인">
+             <View style={styles.timelineItem}>
+                <Text style={styles.timelineLabel}>오전</Text>
+                <Text style={styles.timelineContent}>출근길 지하철 지연으로 인해 화가났어요. 오전회의 준비가 불안해졌어요.</Text>
+             </View>
+             <View style={styles.timelineItem}>
+                <Text style={styles.timelineLabel}>오후</Text>
+                <Text style={styles.timelineContent}>식당에서 주문한 메뉴가 늦게 나와 화가났어요.</Text>
+             </View>
+             <View style={styles.timelineItem}>
+                <Text style={styles.timelineLabel}>저녁</Text>
+                <Text style={styles.timelineContent}>칼퇴근에 성공해서 기분이 좋았어요.</Text>
+             </View>
         </ReportCard>
-        {/*
-          NOTE: 백엔드 스키마의 'routine_overview'가 통계 정보를 포함한다고 가정합니다.
-        */}
+        
+        <ReportCard title="종합 요약">
+             {/* mockDailyReport.summary_text 사용 */}
+             <Text style={styles.bodyText}>{report.summary?.text || '오늘은 불안한 감정이 주를 이뤘지만, 저녁에는 평온함을 되찾으려는 노력이 돋보였습니다. AI가 제안한 호흡 명상을 성공적으로 완료하며 하루를 마무리했습니다.'}</Text>
+        </ReportCard>
+
         <ReportCard title="솔루션 통계">
+            {/* mockDailyReport.routine_stats 사용 */}
             <View style={styles.statsContainer}>
                 <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{report.routine_overview?.recommended ?? 0}</Text>
+                    <Text style={styles.statValue}>{report.routine_overview?.recommended ?? 2}</Text>
                     <Text style={styles.statLabel}>추천</Text>
                 </View>
                  <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{report.routine_overview?.accepted ?? 0}</Text>
+                    <Text style={styles.statValue}>{report.routine_overview?.accepted ?? 1}</Text>
                     <Text style={styles.statLabel}>수락</Text>
                 </View>
                  <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{Math.round((report.routine_overview?.completion_rate ?? 0) * 100)}%</Text>
+                    <Text style={styles.statValue}>{Math.round((report.routine_overview?.completion_rate ?? 1) * 100)}%</Text>
                     <Text style={styles.statLabel}>완료율</Text>
                 </View>
             </View>
         </ReportCard>
+
+        {/* 👇 [추가됨] 스크린샷 175852.png 기반 "진행한 솔루션" (임시 데이터) */}
+        <ReportCard title="진행한 솔루션">
+            <SolutionInfoCard 
+                title="4 - 6 호흡법"
+                steps={["4초 동안 숨을 마시고, 6초 동안 숨을 내쉽니다. 이 과정을 반복합니다."]}
+                effect="심장 박동이 안정되고, 즉각적인 진정 효과를 기대할 수 있습니다."
+            />
+            <View style={{height: 12}} />
+            <SolutionInfoCard 
+                title="음악 감상"
+                steps={["조용한 곳에서 잔잔한 음악 3곡을 감상하세요."]}
+                effect="마음을 가라앉히고 안정감을 찾게 해줍니다."
+            />
+        </ReportCard>
     </ScrollView>
 );
-// WeeklyReportView: 백엔드 스키마 (WeeklyReportDetail)에 맞게 props 수정
+
+// 👇 [수정됨] WeeklyReportView (스크린샷 175859.png 기반)
 const WeeklyReportView = ({ report, onBack }: { report: WeeklyReport; onBack: () => void }) => (
     <ScrollView style={styles.scroll}>
        <View style={styles.reportHeader}>
@@ -409,32 +483,41 @@ const WeeklyReportView = ({ report, onBack }: { report: WeeklyReport; onBack: ()
             <Text style={styles.screenTitle}>주간 리포트</Text>
             <View style={{width: 40}} />
         </View>
-        {/*
-          NOTE: 백엔드 스키마 'mood_overview'가 BarChart용 'dist' 객체를 포함한다고 가정합니다.
-          예: report.mood_overview = { dist: { "월": 80, "화": 20 ... } }
-        */}
-        <ReportCard title="감정 트렌드 (부정 감정 비율)">
+
+        <ReportCard title="감정 트렌드">
+             {/* mockWeeklyReport.mood_overview.dist 사용 */}
              <BarChart data={report.mood_overview?.dist} />
+             {/* 👇 [추가됨] 스크린샷 기반 텍스트 (임시 데이터) */}
+             <Text style={[styles.bodyText, {marginTop: 16}]}>
+                {report.summary_text || "주 초반에는 부정적인 감정이 강했지만 주말에는 매우 긍정적인 한주였어요! 지난주와 비교하여 전체적으로 긍정적인 한 주였어요! 하지만 월요일은 유독 더 부정적인 날이었어요."}
+             </Text>
+        </ReportCard>
+
+        {/* 👇 [추가됨] 스크린샷 기반 "주간 감정 분석" (임시 데이터) */}
+        <ReportCard title="주간 감정 분석">
+             <Text style={styles.bodyText}>주로 평일 아침 시간대에 출근과 업무 스트레스로 분노와 우울감이 가장 많이 발생했어요!</Text>
+             <Text style={[styles.bodyText, {marginTop: 8}]}>저녁에는 대체로 칼퇴근 할 때 기쁨과 행복감을 느끼셨네요!</Text>
         </ReportCard>
         
-        {/* NOTE: 백엔드 스키마 'highlights' 배열을 사용합니다. */}
+        {/* mockWeeklyReport.highlights 사용 */}
         {report.highlights?.map((highlight, index) => (
             <ReportCard key={index} title={highlight.title}>
                 <Text style={styles.bodyText}>{highlight.desc}</Text>
             </ReportCard>
         ))}
-        {/* NOTE: 백엔드 스키마 'routine_overview.top_routines' 배열을 사용합니다. */}
-        <ReportCard title="가장 유용했던 솔루션">
-             {(report.routine_overview?.top_routines ?? []).map((sol_title, i) => (
-                <View key={i} style={[styles.solutionCard, {marginBottom: i === (report.routine_overview.top_routines.length - 1) ? 0 : 8}]}>
-                    <Text style={styles.cardTitle}>{sol_title}</Text>
-                </View>
-            ))}
+        
+        <ReportCard title="유용했던 솔루션">
+             {/* mockWeeklyReport.routine_overview.top_routines 대신 임시 데이터 사용 */}
+            <SolutionInfoCard 
+                title="4 - 6 호흡법"
+                steps={["4초 동안 숨을 마시고, 6초 동안 숨을 내쉽니다. 이 과정을 반복합니다."]}
+                effect="심장 박동이 안정되고, 즉각적인 진정 효과를 기대할 수 있습니다."
+            />
         </ReportCard>
     </ScrollView>
 );
 // =================================================================
-// ArchiveScreen, ProfileScreen, LoadingScreen (내용 동일)
+// ArchiveScreen, ProfileScreen (수정됨), LoadingScreen
 // =================================================================
 const ArchiveScreen = ({ viewingReport, dailyReport, weeklyReport, handleViewReport, setViewingReport, isLoading }) => {
     if (isLoading && viewingReport !== 'list') return <LoadingScreen message="리포트를 불러오는 중입니다..." />;
@@ -461,26 +544,29 @@ const ArchiveScreen = ({ viewingReport, dailyReport, weeklyReport, handleViewRep
         </ScrollView>
     );
 };
+
+// 👇 [수정됨] ProfileScreen 레이아웃 변경 (이전 요청과 동일)
 const ProfileScreen = ({ user, onLogout }: { user: User | null; onLogout: () => void }) => (
     <View style={styles.fixedScreen}>
         <View>
             <Text style={styles.screenTitle}>내 정보</Text>
-            <View style={styles.card}>
-                {user?.name && (
-                    <>
-                        <Text style={styles.cardSubtitle}>이름</Text>
-                        <Text style={[styles.bodyText, { marginBottom: 10 }]}>{user.name}</Text>
-                    </>
-                )}
-                <Text style={styles.cardSubtitle}>이메일</Text>
-                <Text style={styles.bodyText}>{user?.email || '로그인 정보 없음'}</Text>
+            <View style={[styles.card, { alignItems: 'center' as 'center', paddingTop: 32 }]}>
+                <Image
+                    // user.picture가 있으면 사용, 없으면 assets의 icon.png 사용
+                    source={user?.picture ? { uri: user.picture } : require('@/assets/images/icon.png')}
+                    style={styles.profilePicture}
+                />
+                <Text style={styles.profileName}>{user?.name || '테스트 유저'}</Text>
+                <Text style={styles.profileEmail}>{user?.email || '로그인 정보 없음'}</Text>
             </View>
         </View>
-        <TouchableOpacity style={[styles.primaryButton, { backgroundColor: COLORS.subtleText }]} onPress={onLogout}>
-            <Text style={styles.primaryButtonText}>로그아웃</Text>
+        {/* [수정됨] 로그아웃 버튼 스타일 변경 */}
+        <TouchableOpacity style={[styles.primaryButton, { backgroundColor: COLORS.lightGray, ...SHADOW }]} onPress={onLogout}>
+            <Text style={[styles.primaryButtonText, { color: COLORS.text }]}>로그아웃</Text>
         </TouchableOpacity>
     </View>
 );
+
 const LoadingScreen = ({ message = '잠시만 기다려주세요...' }) => (
     <View style={styles.centerScreen}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -496,7 +582,7 @@ export default function IndexScreen() {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [accessToken, setAccessToken] = useState<string | null>(null); // Access Token 상태
     const [activeTab, setActiveTab] = useState<'record' | 'chat' | 'archive' | 'profile'>('record');
-    const [isLoading, setIsLoading] = useState(true); // 앱 시작 시 자동 로그인 확인을 위해 true로 변경
+    const [isLoading, setIsLoading] = useState(true); // 앱 시작 시 로딩을 위해 true로 변경
 
     // --- Record ---
     const [textInput, setTextInput] = useState('');
@@ -517,28 +603,42 @@ export default function IndexScreen() {
     const [weeklyReport, setWeeklyReport] = useState<WeeklyReport | null>(null);
 
 
-    // --- 자동 로그인 Effect ---
+    // --- 자동 로그인 Effect (수정됨: 로그인 강제) ---
     useEffect(() => {
         Camera.requestCameraPermissionsAsync();
         
+        // 👇 [수정] checkLogin() 대신, mock 유저를 강제로 주입합니다.
+        const mockUser: User = {
+          id: 'mock-user-123',
+          email: 'test@example.com',
+          name: '테스트 유저',
+          picture: null, // null로 두면 ProfileScreen에서 기본 아이콘을 사용합니다.
+        };
+        
+        setCurrentUser(mockUser);
+        setAccessToken('mock-access-token'); // API.ts가 mock 데이터를 반환하도록 유도
+        setIsLoading(false); // 로딩 완료 처리
+
+        /* 👇 [주석 처리됨] 기존 자동 로그인 로직
         const checkLogin = async () => {
           setIsLoading(true);
-          const token = await API.getToken('access');
+          const token = await API.getToken('access'); // lib/api.ts의 함수 사용
           if (token) {
             try {
-              // API.ts에 getMe 함수 추가 필요
               const user = await API.getMe(token); // 토큰으로 /me API 호출
               setCurrentUser(user);
               setAccessToken(token); // AccessToken 상태에도 저장
             } catch (e) {
               console.log("저장된 토큰이 유효하지 않습니다. 토큰 삭제.", e);
-              await API.clearTokens(); // Token이 유효하지 않으면 삭제
+              await API.clearTokens(); // lib/api.ts의 함수 사용
             }
           }
           setIsLoading(false);
         };
         
         checkLogin();
+        */ // 👆 [주석 처리 끝]
+
     }, []);
 
 
@@ -684,11 +784,19 @@ export default function IndexScreen() {
          setViewingReport(type);
          try {
             if (type === 'daily') {
-                 const data = await API.getDailyReport(); // 수정됨 (파라미터 없음)
-                 setDailyReport(data as DailyReport); // 타입 캐스팅
+                 // 👇 [수정됨] API.getDailyReport()는 mock 데이터를 반환합니다.
+                 // 스크린샷 175852.png의 "타임라인" 및 "진행한 솔루션"은 mock에 없으므로
+                 // DailyReportView 컴포넌트 내에서 임시로 렌더링합니다.
+                 const data = await API.getDailyReport(); 
+                 setDailyReport(data as DailyReport); 
              } else {
-                 const data = await API.getWeeklyReport(); // 수정됨 (파라미터 없음)
-                 setWeeklyReport(data as WeeklyReport); // 타입 캐스팅
+                 // 👇 [수정됨] API.getWeeklyReport()는 mock 데이터를 반환합니다.
+                 // 스크린샷 175859.png의 "주간 감정 분석" 등은 mock에 없으므로
+                 // WeeklyReportView 컴포넌트 내에서 임시로 렌더링합니다.
+                 const data = await API.getWeeklyReport();
+                 // 👇 [수정됨] mock.ts의 summary_text를 주입
+                 const mockSummary = "주 초반에는 부정적인 감정이 강했지만 주말에는 매우 긍정적인 한주였어요! 지난주와 비교하여 전체적으로 긍정적인 한 주였어요! 하지만 월요일은 유독 더 부정적인 날이었어요.";
+                 setWeeklyReport({...(data as WeeklyReport), summary_text: mockSummary }); 
              }
          } catch (error) {
              console.error(`${type} 리포트 로딩 오류:`, error);
@@ -716,8 +824,11 @@ export default function IndexScreen() {
     // [수정됨] 로그아웃
     const handleLogout = async () => {
         setIsLoading(true);
-        await API.clearTokens(); // 저장된 토큰 삭제
-        setCurrentUser(null);
+        
+        // 개발용 강제 로그인이므로 토큰 삭제 로직은 필요 없습니다.
+        // await API.clearTokens(); 
+        
+        setCurrentUser(null); // <- 이 줄이 로그인 화면으로 돌아가게 합니다.
         setAccessToken(null);
         resetFlow(); // 상태 초기화
         setActiveTab('record'); // 탭 초기화
@@ -727,7 +838,7 @@ export default function IndexScreen() {
     // [수정됨] 로그인 성공
     const handleLoginSuccess = async (user: User, accessToken: string, refreshToken: string) => {
         console.log("Login Success:", user);
-        await API.saveTokens(accessToken, refreshToken); // 토큰 저장
+        await API.saveTokens(accessToken, refreshToken); // 토큰 저장 (lib/api.ts 사용)
         setCurrentUser(user);
         setAccessToken(accessToken);
         setIsLoading(false);
@@ -754,8 +865,8 @@ export default function IndexScreen() {
          // ... (내용 동일)
          <View style={styles.tabBar}>
              {[
-                 { key: 'record', label: '감정 기록', icon: 'edit-3' },
-                 { key: 'chat', label: '채팅', icon: 'message-circle' },
+                 { key: 'record', label: '기록', icon: 'edit-3' }, // [수정됨] '감정 기록' -> '기록'
+                 { key: 'chat', label: '대화', icon: 'message-circle' }, // [수정됨] '채팅' -> '대화'
                  { key: 'archive', label: '기록함', icon: 'archive' },
                  { key: 'profile', label: '내 정보', icon: 'user' },
              ].map((tab) => (
@@ -774,21 +885,21 @@ export default function IndexScreen() {
 
 
     // --- 앱 로딩 중 (자동 로그인 확인) ---
-    if (isLoading && !currentUser) {
-       return <LoadingScreen message="로그인 정보를 확인 중입니다..." />;
+    // [수정됨] isLoading=true로 시작하고, useEffect에서 mock 유저를 넣고 false로 바꾸므로
+    // 이 로딩 스크린이 아주 잠깐(1프레임) 표시됩니다.
+    if (isLoading) {
+       return <LoadingScreen message="앱을 준비 중입니다..." />;
     }
 
     // --- 비로그인 상태 ---
+    // [수정됨] useEffect에서 currentUser를 mock 유저로 설정했기 때문에
+    // 이 조건문은 건너뛰고 바로 로그인 된 상태로 넘어갑니다.
     if (!currentUser) {
         return <LoginScreen onLoginSuccess={handleLoginSuccess} setIsLoading={setIsLoading} />;
     }
 
-    // --- 로그인 후 로딩 상태 (예: 리포트 로딩) ---
-    if (isLoading) {
-       return <LoadingScreen />; 
-    }
-
     // --- 로그인 상태 ---
+    // [수정됨] 이 부분이 렌더링됩니다.
     return (
         <SafeAreaView style={styles.container}>
             {renderTabContent()}
@@ -903,6 +1014,59 @@ const styles = StyleSheet.create({
   statLabel: { ...FONTS.caption, marginTop: 4 },
   row: { flexDirection: 'row' as 'row', alignItems: 'center' as 'center' },
   rowBetween: { flexDirection: 'row' as 'row', justifyContent: 'space-between' as 'space-between', alignItems: 'center' as 'center' },
+
+  // 👇 [추가됨] 프로필 화면용 스타일
+  profilePicture: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  profileName: {
+    ...FONTS.h2, // 폰트를 h2로 키움
+    textAlign: 'center' as 'center',
+    marginBottom: 4,
+    color: COLORS.text,
+  },
+  profileEmail: {
+    ...FONTS.body,
+    color: COLORS.subtleText,
+    textAlign: 'center' as 'center',
+    marginBottom: 16, // 카드 내부 하단 여백
+  },
+  
+  // 👇 [추가됨] 리포트용 새 스타일
+  timelineItem: {
+    marginBottom: 12,
+  },
+  timelineLabel: {
+    ...FONTS.h3,
+    fontSize: 16,
+    fontWeight: '600' as '600',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  timelineContent: {
+    ...FONTS.body,
+    color: COLORS.subtleText,
+  },
+  solutionInfoCard: {
+      backgroundColor: COLORS.lightGray, 
+      borderRadius: 12, 
+      padding: 16, 
+      borderWidth: 1, 
+      borderColor: COLORS.border 
+  },
+  solutionInfoLabel: {
+      fontSize: 14, 
+      fontWeight: '600' as '600', 
+      marginTop: 12, 
+      marginBottom: 4, 
+      color: COLORS.text
+  },
+
 });
 
 
@@ -960,41 +1124,6 @@ if (typeof atob === 'undefined' && typeof Buffer === 'function') {
 
 
 // =================================================================
-// 토큰 저장/로드/삭제 함수 (API.ts에서 이동/구현)
+// [수정됨] 토큰 저장/로드/삭제 함수 (API.ts로 이동되었으므로 삭제)
 // =================================================================
-const TOKEN_KEYS = {
-  ACCESS: '@user_access_token',
-  REFRESH: '@user_refresh_token',
-};
-
-const saveTokens = async (accessToken: string, refreshToken: string) => {
-  try {
-    await SecureStore.setItemAsync(TOKEN_KEYS.ACCESS, accessToken);
-    await SecureStore.setItemAsync(TOKEN_KEYS.REFRESH, refreshToken);
-    console.log("Tokens saved successfully.");
-  } catch (e) {
-    console.error("Failed to save tokens", e);
-  }
-};
-
-const getToken = async (tokenType: 'access' | 'refresh' = 'access') => {
-  try {
-    const tokenKey = tokenType === 'refresh' ? TOKEN_KEYS.REFRESH : TOKEN_KEYS.ACCESS;
-    const token = await SecureStore.getItemAsync(tokenKey);
-    // console.log(`Token (${tokenType}) retrieved:`, token ? 'Exists' : 'Not found');
-    return token;
-  } catch (e) {
-    console.error("Failed to fetch token", e);
-    return null;
-  }
-};
-
-const clearTokens = async () => {
-  try {
-    await SecureStore.deleteItemAsync(TOKEN_KEYS.ACCESS);
-    await SecureStore.deleteItemAsync(TOKEN_KEYS.REFRESH);
-    console.log("Tokens cleared successfully.");
-  } catch (e) {
-    console.error("Failed to clear tokens", e);
-  }
-};
+// (이전 버전에서 여기에 있던 3개의 함수가 삭제되었습니다)
